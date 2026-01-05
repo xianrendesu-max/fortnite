@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Fortnite Aim Trainer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(#0b1c2d, #000);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* ===== UI ===== */
+#hud {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  color: #00f7ff;
+  font-size: 18px;
+  text-shadow: 0 0 10px #00f7ff;
+  z-index: 10;
+}
+
+#result {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 60px;
+  color: #ff3c3c;
+  text-shadow: 0 0 20px #ff3c3c;
+  display: none;
+  z-index: 20;
+}
+
+/* ===== Crosshair ===== */
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  pointer-events: none;
+}
+#crosshair::before,
+#crosshair::after {
+  content: "";
+  position: absolute;
+  background: #ffffff;
+  box-shadow: 0 0 8px #00f7ff;
+}
+#crosshair::before {
+  width: 24px;
+  height: 2px;
+  top: 11px;
+}
+#crosshair::after {
+  width: 2px;
+  height: 24px;
+  left: 11px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  SCORE: <span id="score">0</span><br>
+  TIME: <span id="time">60</span>s
+</div>
+
+<div id="result">HEADSHOT!</div>
+<div id="crosshair"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+/* ===============================
+   基本設定（最適化）
+=============================== */
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000, 5, 20);
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
+camera.position.z = 5;
+
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+document.body.appendChild(renderer.domElement);
+
+/* ===============================
+   ライト（Fortnite風）
+=============================== */
+scene.add(new THREE.AmbientLight(0x66ccff, 0.6));
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+
+/* ===============================
+   ワールド（床）
+=============================== */
+const floorGeo = new THREE.PlaneGeometry(50, 50);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x0b2a3d,
+  roughness: 0.6,
+  metalness: 0.2
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -2;
+scene.add(floor);
+
+/* ===============================
+   ターゲット（ヘッド＋ボディ）
+=============================== */
+let targetGroup;
+
+function spawnTarget() {
+  if (targetGroup) scene.remove(targetGroup);
+
+  targetGroup = new THREE.Group();
+
+  // Body
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0x00ff88 })
+  );
+  body.name = "body";
+
+  // Head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff3333 })
+  );
+  head.position.y = 0.45;
+  head.name = "head";
+
+  targetGroup.add(body);
+  targetGroup.add(head);
+
+  targetGroup.position.set(
+    (Math.random() - 0.5) * 6,
+    (Math.random() - 0.5) * 3,
+    -Math.random() * 8 - 2
+  );
+
+  scene.add(targetGroup);
+}
+
+spawnTarget();
+
+/* ===============================
+   スコア & タイマー
+=============================== */
+let score = 0;
+let timeLeft = 60;
+
+const scoreEl = document.getElementById("score");
+const timeEl = document.getElementById("time");
+const resultEl = document.getElementById("result");
+
+const timer = setInterval(() => {
+  timeLeft--;
+  timeEl.textContent = timeLeft;
+  if (timeLeft <= 0) {
+    clearInterval(timer);
+    alert("FINISH! SCORE: " + score);
+    location.reload();
+  }
+}, 1000);
+
+/* ===============================
+   エイム判定（中央固定）
+=============================== */
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(0, 0);
+
+window.addEventListener("click", () => {
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(targetGroup.children);
+
+  if (hits.length > 0) {
+    if (hits[0].object.name === "head") {
+      score += 2;
+      showHeadshot();
+    } else {
+      score += 1;
+    }
+    scoreEl.textContent = score;
+    spawnTarget();
+  }
+});
+
+/* ===============================
+   ヘッドショット演出
+=============================== */
+function showHeadshot() {
+  resultEl.style.display = "block";
+  setTimeout(() => resultEl.style.display = "none", 300);
+}
+
+/* ===============================
+   ループ
+=============================== */
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ===============================
+   リサイズ
+=============================== */
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
