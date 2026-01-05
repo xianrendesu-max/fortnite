@@ -3,66 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <title>Fortnite Aim Trainer</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
+/* ===============================
+   共通
+=============================== */
 body {
   margin: 0;
   overflow: hidden;
   background: radial-gradient(#0b1c2d, #000);
   font-family: "Segoe UI", Arial, sans-serif;
+  touch-action: none;
 }
 
-/* ===== UI ===== */
+.hidden { display: none; }
+
+/* ===============================
+   HUD
+=============================== */
 #hud {
   position: fixed;
-  top: 20px;
-  left: 20px;
+  top: 16px;
+  left: 16px;
   color: #00f7ff;
   font-size: 18px;
   text-shadow: 0 0 10px #00f7ff;
   z-index: 10;
 }
 
-#result {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 60px;
-  color: #ff3c3c;
-  text-shadow: 0 0 20px #ff3c3c;
-  display: none;
-  z-index: 20;
-}
-
-/* ===== Crosshair ===== */
+/* ===============================
+   クロスヘア
+=============================== */
 #crosshair {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 24px;
-  height: 24px;
-  margin-left: -12px;
-  margin-top: -12px;
+  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 #crosshair::before,
 #crosshair::after {
   content: "";
   position: absolute;
-  background: #ffffff;
+  background: white;
   box-shadow: 0 0 8px #00f7ff;
 }
-#crosshair::before {
-  width: 24px;
-  height: 2px;
-  top: 11px;
+
+/* ===============================
+   PCモード
+=============================== */
+.pc #crosshair {
+  width: 22px;
+  height: 22px;
 }
-#crosshair::after {
+.pc #crosshair::before {
+  width: 22px;
+  height: 2px;
+  top: 10px;
+}
+.pc #crosshair::after {
   width: 2px;
-  height: 24px;
-  left: 11px;
+  height: 22px;
+  left: 10px;
+}
+
+/* ===============================
+   スマホモード
+=============================== */
+.mobile #crosshair {
+  width: 34px;
+  height: 34px;
+}
+.mobile #crosshair::before {
+  width: 34px;
+  height: 3px;
+  top: 15px;
+}
+.mobile #crosshair::after {
+  width: 3px;
+  height: 34px;
+  left: 15px;
+}
+
+/* ===============================
+   スマホ用SHOTボタン
+=============================== */
+#shootBtn {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(#ff5a5a, #b30000);
+  color: white;
+  font-size: 18px;
+  border: none;
+  box-shadow: 0 0 20px #ff3c3c;
+  z-index: 15;
+}
+
+/* ===============================
+   ヘッドショット表示
+=============================== */
+#headshot {
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 56px;
+  color: #ff3c3c;
+  text-shadow: 0 0 20px #ff3c3c;
+  display: none;
+  z-index: 20;
 }
 </style>
 </head>
@@ -74,71 +128,69 @@ body {
   TIME: <span id="time">60</span>s
 </div>
 
-<div id="result">HEADSHOT!</div>
+<div id="headshot">HEADSHOT!</div>
 <div id="crosshair"></div>
+<button id="shootBtn" class="hidden">SHOT</button>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 /* ===============================
-   基本設定（最適化）
+   モード判定
+=============================== */
+const isMobile = /iPhone|Android|iPad/i.test(navigator.userAgent);
+document.body.classList.add(isMobile ? "mobile" : "pc");
+
+const shootBtn = document.getElementById("shootBtn");
+if (isMobile) shootBtn.classList.remove("hidden");
+
+/* ===============================
+   Three.js 基本
 =============================== */
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x000000, 5, 20);
 
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100
-);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 5;
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 document.body.appendChild(renderer.domElement);
 
 /* ===============================
-   ライト（Fortnite風）
+   ライト
 =============================== */
 scene.add(new THREE.AmbientLight(0x66ccff, 0.6));
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-dirLight.position.set(5, 10, 7);
-scene.add(dirLight);
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 7);
+scene.add(light);
 
 /* ===============================
-   ワールド（床）
+   床
 =============================== */
-const floorGeo = new THREE.PlaneGeometry(50, 50);
-const floorMat = new THREE.MeshStandardMaterial({
-  color: 0x0b2a3d,
-  roughness: 0.6,
-  metalness: 0.2
-});
-const floor = new THREE.Mesh(floorGeo, floorMat);
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(50, 50),
+  new THREE.MeshStandardMaterial({ color: 0x0b2a3d })
+);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -2;
 scene.add(floor);
 
 /* ===============================
-   ターゲット（ヘッド＋ボディ）
+   ターゲット
 =============================== */
 let targetGroup;
 
 function spawnTarget() {
   if (targetGroup) scene.remove(targetGroup);
-
   targetGroup = new THREE.Group();
 
-  // Body
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(0.35, 16, 16),
     new THREE.MeshStandardMaterial({ color: 0x00ff88 })
   );
   body.name = "body";
 
-  // Head
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 16, 16),
     new THREE.MeshStandardMaterial({ color: 0xff3333 })
@@ -146,9 +198,7 @@ function spawnTarget() {
   head.position.y = 0.45;
   head.name = "head";
 
-  targetGroup.add(body);
-  targetGroup.add(head);
-
+  targetGroup.add(body, head);
   targetGroup.position.set(
     (Math.random() - 0.5) * 6,
     (Math.random() - 0.5) * 3,
@@ -157,58 +207,52 @@ function spawnTarget() {
 
   scene.add(targetGroup);
 }
-
 spawnTarget();
 
 /* ===============================
-   スコア & タイマー
+   スコア
 =============================== */
 let score = 0;
 let timeLeft = 60;
-
 const scoreEl = document.getElementById("score");
 const timeEl = document.getElementById("time");
-const resultEl = document.getElementById("result");
+const headshotEl = document.getElementById("headshot");
 
-const timer = setInterval(() => {
+setInterval(() => {
   timeLeft--;
   timeEl.textContent = timeLeft;
   if (timeLeft <= 0) {
-    clearInterval(timer);
     alert("FINISH! SCORE: " + score);
     location.reload();
   }
 }, 1000);
 
 /* ===============================
-   エイム判定（中央固定）
+   射撃処理
 =============================== */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2(0, 0);
 
-window.addEventListener("click", () => {
+function shoot() {
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(targetGroup.children);
-
   if (hits.length > 0) {
     if (hits[0].object.name === "head") {
       score += 2;
-      showHeadshot();
+      headshotEl.style.display = "block";
+      setTimeout(() => headshotEl.style.display = "none", 300);
     } else {
       score += 1;
     }
     scoreEl.textContent = score;
     spawnTarget();
   }
-});
-
-/* ===============================
-   ヘッドショット演出
-=============================== */
-function showHeadshot() {
-  resultEl.style.display = "block";
-  setTimeout(() => resultEl.style.display = "none", 300);
 }
+
+window.addEventListener("click", () => {
+  if (!isMobile) shoot();
+});
+shootBtn.addEventListener("touchstart", shoot);
 
 /* ===============================
    ループ
@@ -222,10 +266,10 @@ animate();
 /* ===============================
    リサイズ
 =============================== */
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(innerWidth, innerHeight);
 });
 </script>
 </body>
