@@ -2,39 +2,32 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Fortnite Aim Trainer</title>
+<title>Fortnite Style Aim Trainer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-/* ===============================
-   共通
-=============================== */
 body {
   margin: 0;
   overflow: hidden;
-  background: radial-gradient(#0b1c2d, #000);
+  background: linear-gradient(#7ecbff, #dff3ff);
   font-family: "Segoe UI", Arial, sans-serif;
   touch-action: none;
 }
 
 .hidden { display: none; }
 
-/* ===============================
-   HUD
-=============================== */
+/* HUD */
 #hud {
   position: fixed;
   top: 16px;
   left: 16px;
-  color: #00f7ff;
+  color: white;
   font-size: 18px;
-  text-shadow: 0 0 10px #00f7ff;
+  text-shadow: 0 0 8px #000;
   z-index: 10;
 }
 
-/* ===============================
-   クロスヘア
-=============================== */
+/* Crosshair */
 #crosshair {
   position: fixed;
   top: 50%;
@@ -47,48 +40,15 @@ body {
   content: "";
   position: absolute;
   background: white;
-  box-shadow: 0 0 8px #00f7ff;
 }
+.pc #crosshair { width: 22px; height: 22px; }
+.pc #crosshair::before { width: 22px; height: 2px; top: 10px; }
+.pc #crosshair::after { width: 2px; height: 22px; left: 10px; }
+.mobile #crosshair { width: 34px; height: 34px; }
+.mobile #crosshair::before { width: 34px; height: 3px; top: 15px; }
+.mobile #crosshair::after { width: 3px; height: 34px; left: 15px; }
 
-/* ===============================
-   PCモード
-=============================== */
-.pc #crosshair {
-  width: 22px;
-  height: 22px;
-}
-.pc #crosshair::before {
-  width: 22px;
-  height: 2px;
-  top: 10px;
-}
-.pc #crosshair::after {
-  width: 2px;
-  height: 22px;
-  left: 10px;
-}
-
-/* ===============================
-   スマホモード
-=============================== */
-.mobile #crosshair {
-  width: 34px;
-  height: 34px;
-}
-.mobile #crosshair::before {
-  width: 34px;
-  height: 3px;
-  top: 15px;
-}
-.mobile #crosshair::after {
-  width: 3px;
-  height: 34px;
-  left: 15px;
-}
-
-/* ===============================
-   スマホ用SHOTボタン
-=============================== */
+/* Mobile shoot */
 #shootBtn {
   position: fixed;
   right: 20px;
@@ -96,25 +56,23 @@ body {
   width: 90px;
   height: 90px;
   border-radius: 50%;
-  background: radial-gradient(#ff5a5a, #b30000);
+  background: linear-gradient(#ff6b6b, #ff2e2e);
   color: white;
   font-size: 18px;
   border: none;
-  box-shadow: 0 0 20px #ff3c3c;
+  box-shadow: 0 8px 0 #b30000;
   z-index: 15;
 }
 
-/* ===============================
-   ヘッドショット表示
-=============================== */
+/* Headshot */
 #headshot {
   position: fixed;
   top: 45%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 56px;
-  color: #ff3c3c;
-  text-shadow: 0 0 20px #ff3c3c;
+  color: #ff2e2e;
+  text-shadow: 0 0 10px #fff;
   display: none;
   z-index: 20;
 }
@@ -139,78 +97,137 @@ body {
 =============================== */
 const isMobile = /iPhone|Android|iPad/i.test(navigator.userAgent);
 document.body.classList.add(isMobile ? "mobile" : "pc");
-
 const shootBtn = document.getElementById("shootBtn");
 if (isMobile) shootBtn.classList.remove("hidden");
 
 /* ===============================
-   Three.js 基本
+   Scene
 =============================== */
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x000000, 5, 20);
+scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100);
-camera.position.z = 5;
+camera.position.set(0, 0, 5);
 
-const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 document.body.appendChild(renderer.domElement);
 
 /* ===============================
-   ライト
+   Light
 =============================== */
-scene.add(new THREE.AmbientLight(0x66ccff, 0.6));
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 10, 7);
-scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+sun.position.set(5, 10, 5);
+scene.add(sun);
 
 /* ===============================
-   床
+   Floor
 =============================== */
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(50, 50),
-  new THREE.MeshStandardMaterial({ color: 0x0b2a3d })
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.9 })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -2;
 scene.add(floor);
 
 /* ===============================
-   ターゲット
+   Target
 =============================== */
 let targetGroup;
-
 function spawnTarget() {
   if (targetGroup) scene.remove(targetGroup);
   targetGroup = new THREE.Group();
 
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(0.35, 16, 16),
-    new THREE.MeshStandardMaterial({ color: 0x00ff88 })
+    new THREE.MeshStandardMaterial({ color: 0x2ee6ff })
   );
   body.name = "body";
 
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 16, 16),
-    new THREE.MeshStandardMaterial({ color: 0xff3333 })
+    new THREE.MeshStandardMaterial({ color: 0xff3b3b })
   );
   head.position.y = 0.45;
   head.name = "head";
 
   targetGroup.add(body, head);
   targetGroup.position.set(
-    (Math.random() - 0.5) * 6,
-    (Math.random() - 0.5) * 3,
-    -Math.random() * 8 - 2
+    (Math.random() - 0.5) * 8,
+    (Math.random() - 0.2) * 3,
+    -Math.random() * 10 - 3
   );
-
   scene.add(targetGroup);
 }
 spawnTarget();
 
 /* ===============================
-   スコア
+   視点操作
+=============================== */
+let yaw = 0, pitch = 0;
+const sensitivity = isMobile ? 0.003 : 0.002;
+
+function updateCamera() {
+  pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  camera.rotation.set(pitch, yaw, 0);
+}
+
+if (!isMobile) {
+  document.body.addEventListener("click", () => document.body.requestPointerLock());
+  document.addEventListener("mousemove", e => {
+    if (document.pointerLockElement === document.body) {
+      yaw   -= e.movementX * sensitivity;
+      pitch -= e.movementY * sensitivity;
+      updateCamera();
+    }
+  });
+} else {
+  let lx = 0, ly = 0;
+  addEventListener("touchstart", e => {
+    lx = e.touches[0].clientX;
+    ly = e.touches[0].clientY;
+  });
+  addEventListener("touchmove", e => {
+    const dx = e.touches[0].clientX - lx;
+    const dy = e.touches[0].clientY - ly;
+    lx = e.touches[0].clientX;
+    ly = e.touches[0].clientY;
+    yaw   -= dx * sensitivity;
+    pitch -= dy * sensitivity;
+    updateCamera();
+  });
+}
+
+/* ===============================
+   弾モーション
+=============================== */
+const bullets = [];
+
+function spawnBullet() {
+  const bullet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.03, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffaa })
+  );
+
+  // カメラ前方に生成
+  bullet.position.copy(camera.position);
+  bullet.quaternion.copy(camera.quaternion);
+
+  // 進行方向
+  bullet.velocity = new THREE.Vector3(0, 0, -1)
+    .applyQuaternion(camera.quaternion)
+    .multiplyScalar(1.2);
+
+  bullet.life = 12; // フレーム数
+  scene.add(bullet);
+  bullets.push(bullet);
+}
+
+/* ===============================
+   Shoot（判定＋演出）
 =============================== */
 let score = 0;
 let timeLeft = 60;
@@ -218,6 +235,32 @@ const scoreEl = document.getElementById("score");
 const timeEl = document.getElementById("time");
 const headshotEl = document.getElementById("headshot");
 
+const raycaster = new THREE.Raycaster();
+const center = new THREE.Vector2(0, 0);
+
+function shoot() {
+  spawnBullet();
+
+  raycaster.setFromCamera(center, camera);
+  const hits = raycaster.intersectObjects(targetGroup.children);
+  if (hits.length > 0) {
+    score += hits[0].object.name === "head" ? 2 : 1;
+    scoreEl.textContent = score;
+
+    if (hits[0].object.name === "head") {
+      headshotEl.style.display = "block";
+      setTimeout(() => headshotEl.style.display = "none", 300);
+    }
+    spawnTarget();
+  }
+}
+
+addEventListener("click", () => !isMobile && shoot());
+shootBtn.addEventListener("touchstart", shoot);
+
+/* ===============================
+   Timer
+=============================== */
 setInterval(() => {
   timeLeft--;
   timeEl.textContent = timeLeft;
@@ -228,44 +271,26 @@ setInterval(() => {
 }, 1000);
 
 /* ===============================
-   射撃処理
-=============================== */
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2(0, 0);
-
-function shoot() {
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(targetGroup.children);
-  if (hits.length > 0) {
-    if (hits[0].object.name === "head") {
-      score += 2;
-      headshotEl.style.display = "block";
-      setTimeout(() => headshotEl.style.display = "none", 300);
-    } else {
-      score += 1;
-    }
-    scoreEl.textContent = score;
-    spawnTarget();
-  }
-}
-
-window.addEventListener("click", () => {
-  if (!isMobile) shoot();
-});
-shootBtn.addEventListener("touchstart", shoot);
-
-/* ===============================
-   ループ
+   Loop
 =============================== */
 function animate() {
   requestAnimationFrame(animate);
+
+  // 弾更新
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.position.add(b.velocity);
+    b.life--;
+    if (b.life <= 0) {
+      scene.remove(b);
+      bullets.splice(i, 1);
+    }
+  }
+
   renderer.render(scene, camera);
 }
 animate();
 
-/* ===============================
-   リサイズ
-=============================== */
 addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
