@@ -2,16 +2,15 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Aim & Movement Practice</title>
+<title>Aim & Movement Practice World</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
 body {
   margin: 0;
   overflow: hidden;
-  background: linear-gradient(#7ecbff, #eaf7ff);
+  background: #000;
   font-family: Arial, sans-serif;
-  touch-action: none;
 }
 
 /* HUD */
@@ -20,18 +19,18 @@ body {
   top: 12px;
   left: 12px;
   color: white;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1.4;
   text-shadow: 0 0 6px #000;
   z-index: 10;
-  line-height: 1.4;
 }
 
 #score {
   position: fixed;
   top: 12px;
   right: 16px;
-  font-size: 22px;
   color: #ffeb3b;
+  font-size: 22px;
   text-shadow: 0 0 8px #000;
   z-index: 10;
 }
@@ -41,8 +40,8 @@ body {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 5;
@@ -54,24 +53,24 @@ body {
   background: white;
 }
 #crosshair::before {
-  width: 26px;
+  width: 24px;
   height: 2px;
-  top: 12px;
+  top: 11px;
 }
 #crosshair::after {
   width: 2px;
-  height: 26px;
-  left: 12px;
+  height: 24px;
+  left: 11px;
 }
 
 /* Damage text */
 .damage {
   position: fixed;
   color: red;
-  font-weight: bold;
   font-size: 20px;
-  pointer-events: none;
+  font-weight: bold;
   text-shadow: 0 0 6px black;
+  pointer-events: none;
 }
 </style>
 </head>
@@ -109,6 +108,7 @@ document.body.appendChild(renderer.domElement);
    Light
 =============================== */
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
 const sun = new THREE.DirectionalLight(0xffffff, 0.6);
 sun.position.set(10, 20, 10);
 scene.add(sun);
@@ -116,9 +116,11 @@ scene.add(sun);
 /* ===============================
    Terrain（起伏）
 =============================== */
-const terrainGeo = new THREE.PlaneGeometry(300, 300, 60, 60);
+const terrainGeo = new THREE.PlaneGeometry(300, 300, 80, 80);
 for (let i = 0; i < terrainGeo.attributes.position.count; i++) {
-  const y = Math.sin(i / 4) * 1.2 + Math.cos(i / 7) * 1.5;
+  const y =
+    Math.sin(i / 4) * 1.2 +
+    Math.cos(i / 9) * 1.6;
   terrainGeo.attributes.position.setY(i, y);
 }
 terrainGeo.computeVertexNormals();
@@ -131,7 +133,7 @@ terrain.rotation.x = -Math.PI / 2;
 scene.add(terrain);
 
 /* ===============================
-   Player Movement
+   Player
 =============================== */
 const player = {
   velocity: new THREE.Vector3(),
@@ -170,7 +172,9 @@ addEventListener("keydown", e => {
 /* ===============================
    Camera View
 =============================== */
-let yaw = 0, pitch = 0;
+let yaw = 0;
+let pitch = 0;
+
 document.body.addEventListener("click", () => {
   document.body.requestPointerLock();
 });
@@ -179,7 +183,7 @@ document.addEventListener("mousemove", e => {
   if (document.pointerLockElement === document.body) {
     yaw -= e.movementX * 0.002;
     pitch -= e.movementY * 0.002;
-    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+    pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
     camera.rotation.set(pitch, yaw, 0);
   }
 });
@@ -188,6 +192,7 @@ document.addEventListener("mousemove", e => {
    BOT
 =============================== */
 const bots = [];
+
 function spawnBot() {
   const bot = new THREE.Mesh(
     new THREE.SphereGeometry(0.6, 16, 16),
@@ -195,7 +200,7 @@ function spawnBot() {
   );
   bot.position.set(
     (Math.random() - 0.5) * 60,
-    3,
+    5,
     (Math.random() - 0.5) * 60
   );
   bot.hp = 100;
@@ -214,7 +219,7 @@ let score = 0;
 const scoreEl = document.getElementById("score");
 
 /* ===============================
-   Shoot & Hit Detection
+   Shoot
 =============================== */
 const raycaster = new THREE.Raycaster();
 
@@ -266,7 +271,32 @@ function showDamage(text, worldPos) {
 }
 
 /* ===============================
-   Update Loop
+   Ground Collision（重要）
+=============================== */
+function groundCollision() {
+  const origin = camera.position.clone();
+  origin.y += 0.2;
+
+  raycaster.set(origin, new THREE.Vector3(0, -1, 0));
+  const hits = raycaster.intersectObject(terrain);
+
+  if (hits.length > 0) {
+    const groundY = hits[0].point.y;
+    const footY = camera.position.y - 1.6;
+    const dist = footY - groundY;
+
+    if (dist <= 0.3) {
+      camera.position.y = groundY + 1.6;
+      player.velocity.y = Math.max(0, player.velocity.y);
+      player.onGround = true;
+      return;
+    }
+  }
+  player.onGround = false;
+}
+
+/* ===============================
+   Update
 =============================== */
 function update() {
   const forward = new THREE.Vector3();
@@ -274,9 +304,11 @@ function update() {
   forward.y = 0;
   forward.normalize();
 
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
-  player.direction.set(0, 0, 0);
+  const right = new THREE.Vector3()
+    .crossVectors(forward, camera.up)
+    .normalize();
 
+  player.direction.set(0, 0, 0);
   if (keys["KeyW"]) player.direction.add(forward);
   if (keys["KeyS"]) player.direction.add(forward.clone().negate());
   if (keys["KeyA"]) player.direction.add(right.clone().negate());
@@ -291,21 +323,18 @@ function update() {
   player.velocity.y -= player.gravity;
   camera.position.y += player.velocity.y;
 
-  raycaster.set(camera.position, new THREE.Vector3(0, -1, 0));
-  const hit = raycaster.intersectObject(terrain);
-  if (hit.length > 0 && hit[0].distance < 1.7) {
-    camera.position.y = hit[0].point.y + 1.6;
-    player.velocity.y = 0;
-    player.onGround = true;
-  } else player.onGround = false;
+  groundCollision();
 
   bots.forEach(bot => {
     bot.dir += (Math.random() - 0.5) * 0.05;
     bot.position.x += Math.cos(bot.dir) * bot.speed;
     bot.position.z += Math.sin(bot.dir) * bot.speed;
+
     raycaster.set(bot.position, new THREE.Vector3(0, -1, 0));
     const h = raycaster.intersectObject(terrain);
-    if (h.length > 0) bot.position.y = h[0].point.y + 0.6;
+    if (h.length > 0) {
+      bot.position.y = h[0].point.y + 0.6;
+    }
   });
 }
 
@@ -325,5 +354,6 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 </script>
+
 </body>
 </html>
